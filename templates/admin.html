@@ -1,0 +1,283 @@
+{% extends 'base.html' %}
+
+{% block title %}시큐어 마켓 - 관리자 패널{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h1><i class="fa-solid fa-user-shield"></i> 플랫폼 종합 관리 센터</h1>
+        <p>서비스 전체 리소스(사용자, 상품, 신고, 채팅)를 한 곳에서 모니터링하고 제어합니다.</p>
+    </div>
+
+    <!-- Admin Tabs -->
+    <div class="admin-tabs">
+        <button class="admin-tab-btn active" onclick="switchAdminTab('users')"><i class="fa-solid fa-users"></i> 가입 유저 관리</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('products')"><i class="fa-solid fa-box-open"></i> 상품 목록 관리</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('reports')"><i class="fa-solid fa-flag text-danger"></i> 신고 접수 현황</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('chats')"><i class="fa-solid fa-comments"></i> 최근 채팅 모니터링</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('system')"><i class="fa-solid fa-gears"></i> 시스템 제어</button>
+    </div>
+
+    <!-- Users Panel -->
+    <div id="panel-users" class="admin-panel">
+        <h3>가입 회원 목록 ({{ users|length }}명)</h3>
+        <div class="table-responsive">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>사용자명</th>
+                        <th>소개글 (Bio)</th>
+                        <th>구분</th>
+                        <th>상태</th>
+                        <th>동작 제어</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                        <tr>
+                            <td>{{ u.id }}</td>
+                            <td><strong>{{ u.username }}</strong></td>
+                            <td class="table-bio-cell">{{ u.bio or '-' }}</td>
+                            <td>
+                                {% if u.is_admin %}
+                                    <span class="badge badge-admin">관리자</span>
+                                {% else %}
+                                    <span class="badge badge-user">일반</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge status-{{ u.status }}">
+                                    {{ '일반(Active)' if u.status == 'active' else '휴면(Dormant)' }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if not u.is_admin %}
+                                    {% if u.status == 'active' %}
+                                        <button class="btn-table-action btn-danger-action" onclick="changeUserStatus({{ u.id }}, 'dormant')">휴면 전환</button>
+                                    {% else %}
+                                        <button class="btn-table-action btn-success-action" onclick="changeUserStatus({{ u.id }}, 'active')">일반 복구</button>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">제한 불가</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Products Panel -->
+    <div id="panel-products" class="admin-panel hidden">
+        <h3>등록 상품 목록 ({{ products|length }}개)</h3>
+        <div class="table-responsive">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>상품명</th>
+                        <th>가격</th>
+                        <th>판매자</th>
+                        <th>상태</th>
+                        <th>동작 제어</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in products %}
+                        <tr class="{% if p.is_blocked %}row-blocked{% endif %}">
+                            <td>{{ p.id }}</td>
+                            <td><strong>{{ p.title }}</strong></td>
+                            <td>{{ "{:,}".format(p.price) }}원</td>
+                            <td>{{ p.username }}</td>
+                            <td>
+                                {% if p.is_blocked %}
+                                    <span class="badge status-dormant"><i class="fa-solid fa-lock"></i> 차단됨</span>
+                                {% else %}
+                                    <span class="badge status-active"><i class="fa-solid fa-unlock"></i> 안전 노출</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if p.is_blocked %}
+                                    <button class="btn-table-action btn-success-action" onclick="unblockProduct({{ p.id }})">차단 해제</button>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Reports Panel -->
+    <div id="panel-reports" class="admin-panel hidden">
+        <h3>신고 접수 목록 ({{ reports|length }}건)</h3>
+        <div class="table-responsive">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>신고 ID</th>
+                        <th>신고자</th>
+                        <th>분류</th>
+                        <th>대상 명칭 (ID)</th>
+                        <th>신고 사유</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in reports %}
+                        <tr>
+                            <td>{{ r.id }}</td>
+                            <td>{{ r.reporter_name }} (ID: {{ r.reporter_id }})</td>
+                            <td>
+                                {% if r.target_type == 'user' %}
+                                    <span class="badge badge-user">사용자</span>
+                                {% else %}
+                                    <span class="badge badge-product">상품</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ r.target_name or '삭제됨' }}</strong> (ID: {{ r.target_id }})</td>
+                            <td class="table-reason-cell">{{ r.reason }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Chats Panel -->
+    <div id="panel-chats" class="admin-panel hidden">
+        <h3>최근 전송된 메시지 모니터링 (최대 50개)</h3>
+        <div class="table-responsive">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>메시지 ID</th>
+                        <th>발신자</th>
+                        <th>수신자</th>
+                        <th>메시지 내용</th>
+                        <th>전송 시각</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in chats %}
+                        <tr>
+                            <td>{{ c.id }}</td>
+                            <td>{{ c.sender_name }} (ID: {{ c.sender_id }})</td>
+                            <td>
+                                {% if c.receiver_id %}
+                                    {{ c.receiver_name }} (ID: {{ c.receiver_id }})
+                                {% else %}
+                                    <span class="badge badge-global">전체 광장</span>
+                                {% endif %}
+                            </td>
+                            <td class="table-chat-cell"><code>{{ c.message }}</code></td>
+                            <td>{{ c.timestamp }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- System Control Panel -->
+    <div id="panel-system" class="admin-panel hidden">
+        <h3>데이터베이스 및 시스템 상태 초기화</h3>
+        <div class="system-control-card">
+            <div class="card-icon"><i class="fa-solid fa-database text-warning"></i></div>
+            <div class="card-info">
+                <h4>테스트 데이터베이스 초기화 (Reset Database)</h4>
+                <p>현재 데이터베이스의 모든 테이블을 삭제(DROP)하고, 기본 샘플 데이터(사용자 4명, 상품 4개, 기본 대화, 기본 신고)를 포함한 상태로 완전히 리셋합니다.</p>
+                <button class="btn-danger-large" onclick="resetDatabase()"><i class="fa-solid fa-rotate-left"></i> 데이터베이스 초기화 진행</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function switchAdminTab(panelId) {
+        document.querySelectorAll('.admin-panel').forEach(panel => panel.classList.add('hidden'));
+        document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.classList.remove('active'));
+        
+        document.getElementById(`panel-${panelId}`).classList.remove('hidden');
+        
+        // Find clicked tab button
+        event.currentTarget.classList.add('active');
+    }
+
+    async function changeUserStatus(userId, status) {
+        if (!confirm(`해당 사용자의 상태를 ${status === 'active' ? '일반' : '휴면'} 상태로 변경하시겠습니까?`)) return;
+        
+        const formData = new FormData();
+        formData.append('user_id', userId);
+        formData.append('status', status);
+        
+        try {
+            const response = await fetch('/admin/user/status', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('success', data.msg);
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast('danger', data.msg);
+            }
+        } catch (e) {
+            showToast('danger', '상태 변경 중 통신 오류가 발생했습니다.');
+        }
+    }
+
+    async function unblockProduct(productId) {
+        if (!confirm('해당 상품의 차단을 해제하시겠습니까? 관련 신고도 모두 리셋됩니다.')) return;
+        
+        const formData = new FormData();
+        formData.append('product_id', productId);
+        
+        try {
+            const response = await fetch('/admin/product/unblock', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('success', data.msg);
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast('danger', data.msg);
+            }
+        } catch (e) {
+            showToast('danger', '차단 해제 중 통신 오류가 발생했습니다.');
+        }
+    }
+
+    async function resetDatabase() {
+        if (!confirm('경고! 데이터베이스가 기본값으로 강제 리셋됩니다. 모든 신규 거래 및 가입 기록이 사라집니다. 진행하시겠습니까?')) return;
+        
+        try {
+            const response = await fetch('/admin/reset_db', {
+                method: 'POST'
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('success', data.msg);
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('index') }}";
+                }, 1500);
+            } else {
+                showToast('danger', data.msg);
+            }
+        } catch (e) {
+            showToast('danger', '데이터베이스 리셋 중 통신 오류가 발생했습니다.');
+        }
+    }
+</script>
+{% endblock %}

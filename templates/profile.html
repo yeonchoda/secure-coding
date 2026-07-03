@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}시큐어 마켓 - 마이페이지{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <div class="profile-card">
+        <div class="profile-header-block">
+            <div class="avatar-large"><i class="fa-solid fa-circle-user"></i></div>
+            <div class="profile-meta">
+                <h2>{{ profile_user.username }} 님의 프로필</h2>
+                <span class="status-badge status-{{ profile_user.status }}">
+                    {% if profile_user.status == 'active' %}
+                        <i class="fa-solid fa-user-check"></i> 일반 계정
+                    {% else %}
+                        <i class="fa-solid fa-user-slash"></i> 휴면 계정
+                    {% endif %}
+                </span>
+                <span class="db-id-badge">Database ID: {{ profile_user.id }}</span>
+            </div>
+        </div>
+
+        <!-- IDOR Vulnerability Alert Card (only when SECURITY_MODE is OFF) -->
+        {% if not SECURITY_MODE %}
+            <div class="alert alert-info mt-4">
+                <h5><i class="fa-solid fa-bug"></i> IDOR (취약한 접근 제어) 실습 안내</h5>
+                <p>현재 취약 모드입니다. 다른 사용자의 데이터를 불법 수정하거나 열람해볼 수 있습니다:</p>
+                <ul>
+                    <li><strong>조회:</strong> 브라우저 주소창에서 <code>/profile?user_id=3</code> 형태로 강제 이동하여 ID가 3인 유저의 정보를 볼 수 있습니다.</li>
+                    <li><strong>수정:</strong> 하단 프로필 수정 양식에서 hidden 값인 <code>user_id</code>의 value 값을 개발자 도구(F12)로 변조하여 타인의 소개글이나 비밀번호를 변경해 보세요.</li>
+                </ul>
+            </div>
+        {% endif %}
+
+        <div class="profile-body">
+            <h3>개인 정보 업데이트 및 계정 관리</h3>
+            
+            <form id="profileUpdateForm" onsubmit="submitProfileUpdate(event)" class="profile-form">
+                <!-- User ID Field (IDOR target) -->
+                <input type="hidden" name="user_id" value="{{ profile_user.id }}">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>사용자명 (Username)</label>
+                        <input type="text" class="input-disabled" value="{{ profile_user.username }}" readonly>
+                        <small>사용자명은 변경할 수 없습니다.</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="prof_status">계정 상태 (Status)</label>
+                        <select id="prof_status" name="status">
+                            <option value="active" {% if profile_user.status == 'active' %}selected{% endif %}>일반 계정 (Active)</option>
+                            <option value="dormant" {% if profile_user.status == 'dormant' %}selected{% endif %}>휴면 전환 (Dormant)</option>
+                        </select>
+                        <small>휴면 상태로 전환 시, 즉시 로그아웃되며 서비스 이용이 일시 중지됩니다.</small>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="prof_bio">소개글 (Bio)</label>
+                    <textarea id="prof_bio" name="bio" rows="4" placeholder="자신에 대해 적어주세요.">{{ profile_user.bio or '' }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="prof_password">새 비밀번호 (Password)</label>
+                    <input type="password" id="prof_password" name="new_password" placeholder="비밀번호 변경 시에만 입력하세요.">
+                    <small>빈 칸으로 둘 경우 기존 비밀번호가 유지됩니다.</small>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary"><i class="fa-solid fa-save"></i> 프로필 업데이트</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function submitProfileUpdate(e) {
+        e.preventDefault();
+        
+        const form = document.getElementById('profileUpdateForm');
+        const formData = new FormData(form);
+        
+        try {
+            const response = await fetch('/profile/update', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('success', data.msg);
+                if (data.redirect) {
+                    setTimeout(() => {
+                        window.location.href = data.redirect;
+                    }, 1500);
+                } else {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            } else {
+                showToast('danger', data.msg);
+            }
+        } catch (e) {
+            showToast('danger', '프로필 업데이트 실패: 네트워크 에러');
+        }
+    }
+</script>
+{% endblock %}

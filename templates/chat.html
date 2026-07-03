@@ -1,0 +1,301 @@
+{% extends 'base.html' %}
+
+{% block title %}시큐어 마켓 - 실시간 채팅{% endblock %}
+
+{% block content %}
+<div class="chat-page-container">
+    <!-- Chat Sidebar: Rooms and Direct Message Users -->
+    <aside class="chat-sidebar">
+        <div class="sidebar-header">
+            <h3><i class="fa-solid fa-comments"></i> 대화 채널</h3>
+        </div>
+        
+        <div class="channels-list">
+            <!-- Global Chat Room Option -->
+            <button class="channel-btn active" id="btn-channel-global" onclick="selectChannel(null, '전체 실시간 광장')">
+                <i class="fa-solid fa-globe"></i>
+                <div class="channel-info">
+                    <span class="channel-name">전체 실시간 광장</span>
+                    <small>모든 회원 참여 가능</small>
+                </div>
+            </button>
+            
+            <div class="sidebar-divider">1:1 프라이빗 채팅</div>
+            
+            <div class="direct-users-list">
+                {% for u in chat_users %}
+                    <button class="channel-btn" id="btn-channel-{{ u.id }}" onclick="selectChannel({{ u.id }}, '{{ u.username }}')">
+                        <i class="fa-solid fa-user-ninja"></i>
+                        <div class="channel-info">
+                            <span class="channel-name">{{ u.username }}</span>
+                            <small class="user-status-text">대화 가능 (ID: {{ u.id }})</small>
+                        </div>
+                        <span class="online-indicator"></span>
+                    </button>
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+
+    <!-- Chat Area -->
+    <section class="chat-area">
+        <div class="chat-header">
+            <div class="chat-header-details">
+                <i class="fa-solid fa-hashtag header-channel-icon"></i>
+                <h2 id="activeChannelTitle">전체 실시간 광장</h2>
+            </div>
+            <span class="chat-mode-badge" id="chatModeBadge">공용 채널</span>
+        </div>
+
+        <!-- IDOR DM Spy Panel (Visible only when SECURITY_MODE is OFF) -->
+        {% if not SECURITY_MODE %}
+            <div class="spy-panel" id="idorSpyPanel">
+                <div class="spy-header">
+                    <h4><i class="fa-solid fa-eye-slash animate-pulse"></i> IDOR DM 도청 장치 (보안 모드 OFF)</h4>
+                    <p>보안 모드가 비활성화되어, 임의의 유저 ID 한 쌍을 지정해 오가는 1:1 비밀 메시지를 훔쳐볼 수 있습니다.</p>
+                </div>
+                <div class="spy-controls">
+                    <div class="spy-group">
+                        <label>송신자 ID (Sender):</label>
+                        <input type="number" id="spySenderId" value="2" min="1">
+                    </div>
+                    <div class="spy-group">
+                        <label>수신자 ID (Receiver):</label>
+                        <input type="number" id="spyReceiverId" value="3" min="1">
+                    </div>
+                    <button class="btn-spy-run" onclick="triggerSpyDMs()"><i class="fa-solid fa-network-wired"></i> 패킷 가로채기</button>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Messages Display Panel -->
+        <div class="chat-messages-container" id="chatMessages">
+            <!-- Messages are inserted dynamically by JS -->
+            <p class="chat-status-text">채팅방을 로드 중입니다...</p>
+        </div>
+
+        <!-- Message Input Footer -->
+        <div class="chat-footer">
+            <form id="chatForm" onsubmit="sendChatMessage(event)" class="chat-input-form">
+                <input type="text" id="chatInput" placeholder="메시지를 입력해 주세요... XSS 취약점 테스트용 스크립트 작성 가능" required autocomplete="off">
+                <button type="submit" class="btn-chat-send"><i class="fa-solid fa-paper-plane"></i> 전송</button>
+            </form>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let activeReceiverId = null; 
+    let activeChannelName = '전체 실시간 광장';
+    let pollInterval = null;
+    let isSpyMode = false;
+
+    // Get current user's ID passed from Flask context
+    const currentUserId = {{ user_id or 'null' }};
+
+    // Auto start chat if query params exist
+    window.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const startChatId = urlParams.get('start_chat');
+        const startChatName = urlParams.get('username');
+        
+        if (startChatId && startChatName) {
+            selectChannel(parseInt(startChatId), startChatName);
+        } else {
+            startPolling();
+        }
+    });
+
+    function selectChannel(receiverId, name) {
+        isSpyMode = false;
+        activeReceiverId = receiverId;
+        activeChannelName = name;
+
+        // Update active class in sidebar
+        document.querySelectorAll('.channel-btn').forEach(btn => btn.classList.remove('active'));
+        if (receiverId === null) {
+            document.getElementById('btn-channel-global').classList.add('active');
+            document.getElementById('activeChannelTitle').textContent = '전체 실시간 광장';
+            document.getElementById('chatModeBadge').textContent = '공용 채널';
+            document.getElementById('chatModeBadge').className = 'chat-mode-badge global';
+        } else {
+            const btn = document.getElementById(`btn-channel-${receiverId}`);
+            if (btn) btn.classList.add('active');
+            document.getElementById('activeChannelTitle').textContent = `${name} 님과의 대화`;
+            document.getElementById('chatModeBadge').textContent = '1:1 비밀 채널';
+            document.getElementById('chatModeBadge').className = 'chat-mode-badge private';
+        }
+
+        // Clear messages and restart polling
+        document.getElementById('chatMessages').innerHTML = '<p class="chat-status-text">대화 기록을 로드 중입니다...</p>';
+        startPolling();
+    }
+
+    function triggerSpyDMs() {
+        isSpyMode = true;
+        document.querySelectorAll('.channel-btn').forEach(btn => btn.classList.remove('active'));
+        
+        const sender = document.getElementById('spySenderId').value;
+        const receiver = document.getElementById('spyReceiverId').value;
+        
+        document.getElementById('activeChannelTitle').textContent = `[도청 모드] User ID ${sender} ↔ ${receiver} 대화`;
+        document.getElementById('chatModeBadge').textContent = '패킷 해킹 중';
+        document.getElementById('chatModeBadge').className = 'chat-mode-badge spy-badge';
+        
+        document.getElementById('chatMessages').innerHTML = '<p class="chat-status-text">비밀 패킷 가로채는 중...</p>';
+        
+        startPolling();
+    }
+
+    function startPolling() {
+        if (pollInterval) clearInterval(pollInterval);
+        
+        // Immediate fetch
+        fetchMessages();
+        
+        // Poll every 1.5 seconds
+        pollInterval = setInterval(fetchMessages, 1500);
+    }
+
+    // Helper function to escape HTML to prevent XSS in secure mode
+    function escapeHTML(text) {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    async function fetchMessages() {
+        let url = '';
+        
+        if (isSpyMode) {
+            // IDOR vulnerable fetch
+            const sender = document.getElementById('spySenderId').value;
+            const receiver = document.getElementById('spyReceiverId').value;
+            url = `/api/chat/messages?sender_id=${sender}&receiver_id=${receiver}`;
+        } else {
+            if (activeReceiverId === null) {
+                url = '/api/chat/messages';
+            } else {
+                // If security mode is OFF, we can explicitly send sender_id as currentUserId
+                // but actually the endpoint handles it. 
+                url = `/api/chat/messages?receiver_id=${activeReceiverId}`;
+            }
+        }
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.success) {
+                renderMessages(data.messages);
+            }
+        } catch (e) {
+            console.error("채팅 로드 에러", e);
+        }
+    }
+
+    function renderMessages(messages) {
+        const container = document.getElementById('chatMessages');
+        
+        // Save scroll position
+        const isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 50;
+        
+        if (messages.length === 0) {
+            container.innerHTML = '<p class="chat-status-text">대화 내용이 존재하지 않습니다. 첫 메시지를 보내보세요!</p>';
+            return;
+        }
+
+        // Build HTML
+        let htmlContent = '';
+        
+        // Read SECURITY_MODE directly from document.body or a class.
+        // We know it because it's injected in base.html
+        // We can pass a boolean to JS:
+        const isSecurityModeOn = {% if SECURITY_MODE %}true{% else %}false{% endif %};
+
+        messages.forEach(msg => {
+            const isMe = msg.sender_id === currentUserId;
+            const alignClass = isMe ? 'msg-right' : 'msg-left';
+            
+            // XSS demonstration
+            let formattedMsg = '';
+            if (isSecurityModeOn) {
+                // SECURE PATH: Escape user input to treat as raw text
+                formattedMsg = escapeHTML(msg.message);
+            } else {
+                // VULNERABLE PATH: Direct innerHTML injection (Allows XSS payload execute)
+                formattedMsg = msg.message;
+            }
+
+            // Timestamp formatting
+            const date = new Date(msg.timestamp);
+            const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            htmlContent += `
+                <div class="message-row ${alignClass}">
+                    <div class="message-bubble">
+                        <div class="msg-sender">${escapeHTML(msg.sender_name)}</div>
+                        <div class="msg-body">${formattedMsg}</div>
+                        <div class="msg-time">${timeStr}</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Use innerHTML because in vulnerable mode we want scripts inside msg.message to execute.
+        // Wait, if SECURITY_MODE is ON, msg.message is already escaped, so setting innerHTML is safe!
+        // If SECURITY_MODE is OFF, msg.message is not escaped, and setting innerHTML executes it!
+        // To make sure scripts in innerHTML actually execute, standard browsers do not run <script> tags inserted via innerHTML.
+        // But they DO run event handlers, e.g. <img src=x onerror="alert(1)">.
+        // We can demonstrate XSS via image error handles or custom payloads! This works perfectly.
+        container.innerHTML = htmlContent;
+
+        // Scroll to bottom
+        if (isAtBottom) {
+            container.scrollTop = container.scrollHeight;
+        }
+    }
+
+    async function sendChatMessage(e) {
+        e.preventDefault();
+        
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        
+        if (!message) return;
+        
+        const formData = new FormData();
+        formData.append('message', message);
+        formData.append('receiver_id', activeReceiverId);
+
+        // Clear input early
+        input.value = '';
+
+        try {
+            const response = await fetch('/api/chat/send', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                fetchMessages(); // immediately update
+            } else {
+                showToast('danger', data.msg);
+            }
+        } catch (e) {
+            showToast('danger', '채팅 전송 중 네트워크 에러가 발생했습니다.');
+        }
+    }
+
+    // Clean up interval on page change
+    window.addEventListener('beforeunload', () => {
+        if (pollInterval) clearInterval(pollInterval);
+    });
+</script>
+{% endblock %}

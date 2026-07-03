@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+
+{% block title %}시큐어 마켓 - 상품 목록{% endblock %}
+
+{% block content %}
+<div class="products-container">
+    <div class="products-header">
+        <div class="header-left">
+            <h1 class="page-title">
+                {% if is_my_products %}
+                    <i class="fa-solid fa-list-check"></i> 내가 등록한 상품 관리
+                {% else %}
+                    <i class="fa-solid fa-basket-shopping"></i> 상품 목록
+                {% endif %}
+            </h1>
+            <p class="page-subtitle">
+                {% if is_my_products %}
+                    등록하신 중고 물품을 조회하고 안전하게 관리하거나 삭제할 수 있습니다.
+                {% else %}
+                    시큐어 마켓에 실시간 등록된 중고 물품 리스트입니다.
+                {% endif %}
+            </p>
+        </div>
+        
+        <div class="header-right">
+            {% if current_user %}
+                {% if not is_my_products %}
+                    <a href="{{ url_for('my_products') }}" class="btn-secondary"><i class="fa-solid fa-user-tag"></i> 내 상품 관리</a>
+                {% else %}
+                    <a href="{{ url_for('products') }}" class="btn-secondary"><i class="fa-solid fa-tags"></i> 전체 상품 보기</a>
+                {% endif %}
+                <button class="btn-primary" onclick="openModal('addProductModal')"><i class="fa-solid fa-plus"></i> 새 상품 등록</button>
+            {% else %}
+                <p class="login-prompt-text"><i class="fa-solid fa-circle-info"></i> 상품 등록은 <a href="{{ url_for('login') }}">로그인</a>이 필요합니다.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Search Section (only for Browse products) -->
+    {% if not is_my_products %}
+        <div class="search-section">
+            <form action="{{ url_for('products_search') }}" method="GET" class="search-form">
+                <div class="search-input-wrapper">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" name="q" placeholder="찾으시는 중고 상품을 검색해 보세요..." value="{{ search_query or '' }}">
+                </div>
+                <button type="submit" class="btn-search">검색</button>
+            </form>
+        </div>
+    {% endif %}
+
+    <!-- SQL Injection Vulnerability Alert Card -->
+    {% if not SECURITY_MODE and search_query %}
+        <div class="alert alert-info">
+            <h5><i class="fa-solid fa-terminal"></i> SQL Injection 결과 분석 (보안 모드 OFF)</h5>
+            <p>실행된 SQL 쿼리: <code>SELECT p.*, u.username FROM products p JOIN users u ON p.seller_id = u.id WHERE (p.title LIKE '%{{ search_query }}%' OR p.description LIKE '%{{ search_query }}%') AND p.is_blocked = 0 ...</code></p>
+            <p>검색창에 아래의 SQL Injection 구문을 입력해 사용자 비밀번호 해시 데이터 유출을 유도해보세요:</p>
+            <code class="block-code">' UNION SELECT 1, username, password, 4, 5, 0 FROM users --</code>
+        </div>
+    {% endif %}
+
+    <!-- Product List -->
+    <div class="products-list-wrapper">
+        <h3 class="list-heading">
+            {% if search_query %}
+                "{{ search_query }}" 검색 결과 ({{ products|length }}개)
+            {% else %}
+                등록된 상품 리스트 (이름 기준 목록)
+            {% endif %}
+        </h3>
+        
+        {% if products %}
+            <div class="product-title-list">
+                {% for p in products %}
+                    <div class="product-title-item" id="product-card-{{ p.id }}">
+                        <div class="item-main">
+                            <span class="item-title">
+                                <i class="fa-solid fa-box"></i> {{ p.title }}
+                            </span>
+                            {% if is_my_products %}
+                                <span class="item-price">{{ "{:,}".format(p.price) }}원</span>
+                            {% else %}
+                                <span class="item-seller"><i class="fa-solid fa-user"></i> {{ p.username }}</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="item-actions">
+                            <a href="{{ url_for('product_detail', product_id=p.id) }}" class="btn-view-detail">상세 보기 <i class="fa-solid fa-chevron-right"></i></a>
+                            
+                            {% if is_my_products or is_admin %}
+                                <button class="btn-delete-product" onclick="deleteProduct({{ p.id }}, {{ p.price if p.price else 0 }})"><i class="fa-solid fa-trash-can"></i> 삭제</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state-container">
+                <i class="fa-solid fa-box-open empty-icon"></i>
+                <p>등록된 상품이 존재하지 않거나, 검색 결과가 없습니다.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Product Modal -->
+<div id="addProductModal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-plus-circle"></i> 중고 상품 등록</h3>
+            <button class="close-btn" onclick="closeModal('addProductModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            {% if add_error %}
+                <div class="alert alert-danger">{{ add_error }}</div>
+            {% endif %}
+            <form action="{{ url_for('add_product') }}" method="POST" class="modal-form">
+                <div class="form-group">
+                    <label for="prod_title">상품명</label>
+                    <input type="text" id="prod_title" name="title" placeholder="상품명을 입력하세요 (필수)" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="prod_price">가격 (원)</label>
+                    <input type="number" id="prod_price" name="price" placeholder="판매 가격을 입력하세요" required min="0">
+                </div>
+                <div class="form-group">
+                    <label for="prod_desc">상품 설명</label>
+                    <textarea id="prod_desc" name="description" rows="5" placeholder="상품에 대해 자세히 설명해 주세요. XSS 실습을 위해 HTML 태그나 스크립트를 입력해보실 수 있습니다."></textarea>
+                </div>
+                <button type="submit" class="btn-primary w-full mt-4">상품 등록 완료</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function deleteProduct(productId, priceVal) {
+        if (!confirm('정말로 이 상품을 삭제하시겠습니까?')) return;
+        
+        // IDOR 실습을 위해 사용자가 input이나 prompt로 productId를 조작해 타인 상품을 삭제해보는 실습도 가능합니다.
+        // 여기서는 REST API를 호출합니다.
+        try {
+            const response = await fetch(`/product/delete/${productId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('success', data.msg);
+                const card = document.getElementById(`product-card-${productId}`);
+                if (card) card.remove();
+            } else {
+                showToast('danger', data.msg);
+            }
+        } catch (e) {
+            showToast('danger', '상품 삭제 중 네트워크 오류가 발생했습니다.');
+        }
+    }
+</script>
+{% endblock %}

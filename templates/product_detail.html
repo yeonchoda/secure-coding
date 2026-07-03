@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+
+{% block title %}시큐어 마켓 - {{ product.title }}{% endblock %}
+
+{% block content %}
+<div class="detail-container">
+    <div class="back-navigation">
+        <a href="{{ url_for('products') }}" class="btn-back"><i class="fa-solid fa-arrow-left"></i> 목록으로 돌아가기</a>
+    </div>
+
+    <div class="product-detail-card">
+        <!-- Image placeholder or visual container -->
+        <div class="product-gallery">
+            <div class="gallery-image-wrapper">
+                <i class="fa-solid fa-image gallery-placeholder-icon"></i>
+                <div class="gallery-label">실물 사진 대체 영역 (교육용 Mockup)</div>
+            </div>
+        </div>
+
+        <div class="product-info-panel">
+            <div class="info-header">
+                <span class="detail-tag">중고 상품 상세</span>
+                <h1 class="detail-title">{{ product.title }}</h1>
+                <div class="detail-price-box">
+                    <span class="price-val">{{ "{:,}".format(product.price) }}</span> 원
+                </div>
+            </div>
+
+            <!-- Seller Info -->
+            <div class="seller-profile-box">
+                <div class="seller-avatar">
+                    <i class="fa-solid fa-circle-user"></i>
+                </div>
+                <div class="seller-details">
+                    <span class="seller-name">{{ product.username }} (판매자)</span>
+                    <p class="seller-bio">{{ product.seller_bio or '등록된 소개글이 없는 판매자입니다.' }}</p>
+                </div>
+                {% if current_user and current_user != product.username %}
+                    <div class="seller-actions">
+                        <button class="btn-report-small" onclick="openReportModal('user', {{ product.seller_id }}, '{{ product.username }}')">
+                            <i class="fa-solid fa-user-slash"></i> 판매자 신고
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Description with XSS Demonstration -->
+            <div class="product-description-box">
+                <h3>상품 상세 정보</h3>
+                <div class="description-content">
+                    {% if SECURITY_MODE %}
+                        <!-- SECURE: Escaped description rendering (Default Jinja autoescaping) -->
+                        {{ product.description }}
+                    {% else %}
+                        <!-- VULNERABLE: Direct rendering allows arbitrary HTML/JS injection -->
+                        {{ product.description | safe }}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Product Level Controls -->
+            <div class="product-controls">
+                {% if current_user %}
+                    {% if current_user != product.username %}
+                        <a href="{{ url_for('chat') }}?start_chat={{ product.seller_id }}&username={{ product.username }}" class="btn-chat-start">
+                            <i class="fa-solid fa-paper-plane"></i> 1:1 판매자 채팅
+                        </a>
+                        <button class="btn-report-prod" onclick="openReportModal('product', {{ product.id }}, '{{ product.title }}')">
+                            <i class="fa-solid fa-triangle-exclamation"></i> 상품 신고하기
+                        </button>
+                    {% else %}
+                        <p class="owner-status-label"><i class="fa-solid fa-user-check"></i> 본인이 등록한 상품입니다.</p>
+                    {% endif %}
+                {% else %}
+                    <div class="login-action-box">
+                        <p><i class="fa-solid fa-lock"></i> 채팅 및 신고 기능은 로그인이 필요합니다.</p>
+                        <a href="{{ url_for('login') }}" class="btn-login-small">로그인 하러 가기</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Modal -->
+<div id="reportModal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-bullhorn"></i> <span id="reportTargetTypeLabel"></span> 신고 작성</h3>
+            <button class="close-btn" onclick="closeModal('reportModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="alert alert-warning mb-4">
+                <i class="fa-solid fa-robot"></i> <strong>신고 누적 경고:</strong><br>
+                해당 리소스가 총 3회 이상 신고를 받을 경우, 
+                시스템 엔진에 의해 <strong>자동 차단 및 휴면 처리</strong>가 강제 실행됩니다.
+            </div>
+            
+            <form id="reportForm" onsubmit="submitReportForm(event)" class="modal-form">
+                <input type="hidden" id="reportTargetType" name="target_type">
+                <input type="hidden" id="reportTargetId" name="target_id">
+                
+                <div class="form-group">
+                    <label>신고 대상명</label>
+                    <input type="text" id="reportTargetName" class="input-disabled" readonly>
+                </div>
+                
+                <div class="form-group">
+                    <label for="report_reason">신고 사유 (Reason)</label>
+                    <textarea id="report_reason" name="reason" rows="4" placeholder="신고 사유를 기재해 주세요. 허위 신고 시 조치가 취해질 수 있습니다." required></textarea>
+                </div>
+                
+                <button type="submit" class="btn-report-submit">신고 접수</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openReportModal(type, targetId, targetName) {
+        document.getElementById('reportTargetType').value = type;
+        document.getElementById('reportTargetId').value = targetId;
+        document.getElementById('reportTargetName').value = targetName;
+        document.getElementById('reportTargetTypeLabel').textContent = type === 'user' ? '사용자' : '상품';
+        openModal('reportModal');
+    }
+
+    async function submitReportForm(e) {
+        e.preventDefault();
+        
+        const form = document.getElementById('reportForm');
+        const formData = new FormData(form);
+        
+        try {
+            const response = await fetch('/report', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('success', data.msg);
+                closeModal('reportModal');
+                // Reload after delay if resource got blocked
+                if (data.msg.includes('자동 차단') || data.msg.includes('휴면 처리')) {
+                    setTimeout(() => {
+                        window.location.href = "{{ url_for('products') }}";
+                    }, 2000);
+                }
+            } else {
+                showToast('danger', data.msg);
+            }
+        } catch (e) {
+            showToast('danger', '신고 접수 중 네트워크 오류가 발생했습니다.');
+        }
+    }
+</script>
+{% endblock %}

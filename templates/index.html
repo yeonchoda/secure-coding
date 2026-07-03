@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}시큐어 마켓 - 홈{% endblock %}
+
+{% block content %}
+<section class="hero-section">
+    <div class="hero-content">
+        <span class="badge-tag">Secure Trading Platform</span>
+        <h1 class="hero-title animate-gradient-text">시큐어 마켓</h1>
+        <p class="hero-desc">
+            악성 유저 및 불량 상품 자동 필터링 기능과 실시간 소통 기능을 포함한 중고 거래 플랫폼입니다.<br>
+            상단의 <strong>보안 모드</strong> 스위치를 이용해 보안 취약점이 동작하는 취약 버전과 방어 로직이 작동하는 보안 버전을 실시간으로 비교해보세요.
+        </p>
+        <div class="hero-actions">
+            <a href="{{ url_for('products') }}" class="btn-primary"><i class="fa-solid fa-tags"></i> 상품 보러가기</a>
+            <a href="{{ url_for('security_lab') }}" class="btn-secondary"><i class="fa-solid fa-flask"></i> 보안 약점 분석</a>
+        </div>
+    </div>
+</section>
+
+<!-- Stats Grid -->
+<section class="stats-container">
+    <div class="stat-card">
+        <div class="stat-icon-wrapper color-primary">
+            <i class="fa-solid fa-users"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ users_count }} 명</h3>
+            <p>플랫폼 회원 수</p>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon-wrapper color-success">
+            <i class="fa-solid fa-basket-shopping"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ products_count }} 개</h3>
+            <p>등록된 안전한 상품</p>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon-wrapper color-danger">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ reports_count }} 건</h3>
+            <p>접수된 사용자 신고</p>
+        </div>
+    </div>
+</section>
+
+<!-- Checkpoints and Info -->
+<section class="info-grid">
+    <div class="info-card flex-double">
+        <h2><i class="fa-solid fa-shield-halved"></i> 4대 핵심 보안 진단 항목</h2>
+        <div class="checkpoints-list">
+            <div class="checkpoint-item">
+                <span class="checkpoint-number">01</span>
+                <div class="checkpoint-text">
+                    <h4>SQL Injection (SQL 삽입)</h4>
+                    <p>사용자 입력 데이터를 검증하지 않고 문자열 포맷팅을 사용해 데이터베이스 쿼리를 생성할 때 발생합니다. 로그인 인증 우회, 데이터 유출 등을 직접 시도해 보세요.</p>
+                </div>
+            </div>
+            
+            <div class="checkpoint-item">
+                <span class="checkpoint-number">02</span>
+                <div class="checkpoint-text">
+                    <h4>XSS (크로스 사이트 스크립팅)</h4>
+                    <p>게시글 설명란이나 실시간 채팅창에 입력한 악성 자바스크립트 코드가 필터링 없이 렌더링될 때 발생합니다. 세션 가로채기나 악성 모달 팝업 실행을 확인할 수 있습니다.</p>
+                </div>
+            </div>
+            
+            <div class="checkpoint-item">
+                <span class="checkpoint-number">03</span>
+                <div class="checkpoint-text">
+                    <h4>취약한 비밀번호 암호화</h4>
+                    <p>패스워드를 평문으로 저장하거나 MD5 같은 약한 단방향 해시로 처리하는 설계 취약점입니다. 보안 모드 적용 시 강력한 해시 알고리즘(PBKDF2/Bcrypt)으로 교체 및 자동 업그레이드가 진행됩니다.</p>
+                </div>
+            </div>
+            
+            <div class="checkpoint-item">
+                <span class="checkpoint-number">04</span>
+                <div class="checkpoint-text">
+                    <h4>취약한 접근 제어 (IDOR)</h4>
+                    <p>현재 사용자가 타인의 글을 삭제하거나 다른 사람의 마이페이지 정보를 강제로 변조할 수 있는 인가 검증 누락 상태를 직접 시도하고, 세션 유효성 검사를 통해 보완합니다.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="info-card">
+        <h2><i class="fa-solid fa-clock-rotate-left"></i> 실시간 등록된 상품</h2>
+        <div class="recent-products-list">
+            {% if recent_products %}
+                {% for p in recent_products %}
+                    <a href="{{ url_for('product_detail', product_id=p.id) }}" class="recent-product-item">
+                        <div class="prod-badge"><i class="fa-solid fa-box"></i></div>
+                        <div class="prod-details">
+                            <span class="prod-title">{{ p.title }}</span>
+                            <span class="prod-price">{{ "{:,}".format(p.price) }}원</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right arrow-icon"></i>
+                    </a>
+                {% endfor %}
+            {% else %}
+                <p class="empty-state">등록된 상품이 없습니다.</p>
+            {% endif %}
+        </div>
+        <a href="{{ url_for('products') }}" class="view-all-link">전체 상품 목록 보기 <i class="fa-solid fa-arrow-right"></i></a>
+    </div>
+</section>
+
+<!-- Auto Blocking Information Alert -->
+<section class="banner-alert">
+    <div class="banner-icon"><i class="fa-solid fa-robot"></i></div>
+    <div class="banner-text">
+        <h4>자동 차단 시스템 (Auto-blocking Engine)이 가동 중입니다.</h4>
+        <p>신고 횟수가 <strong>3회 이상</strong>인 상품은 자동으로 조회에서 즉시 <strong>차단 및 숨김 처리</strong>되며, 신고가 3회 이상 접수된 사용자 계정은 <strong>휴면 상태(dormant)</strong>로 전환되어 서비스 이용이 즉각 정지됩니다.</p>
+    </div>
+</section>
+{% endblock %}

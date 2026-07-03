@@ -1,0 +1,304 @@
+{% extends 'base.html' %}
+
+{% block title %}시큐어 마켓 - 보안 연구소{% endblock %}
+
+{% block content %}
+<div class="security-lab-container">
+    <div class="lab-header">
+        <h1><i class="fa-solid fa-flask"></i> 시큐어 코딩 분석 연구소</h1>
+        <p>본 플랫폼에 의도적으로 포함된 4대 주요 보안 약점과 이를 방어하기 위한 안전한 코딩 방식을 대조 분석합니다.</p>
+    </div>
+
+    <!-- 1. SQL Injection -->
+    <div class="lab-card">
+        <div class="lab-card-title vuln-title">
+            <span class="vuln-badge">Checkpoint 1</span>
+            <h2>SQL Injection (SQL 삽입 취약점)</h2>
+        </div>
+        <div class="lab-card-body">
+            <p class="lab-desc">
+                사용자 입력값을 적절히 필터링하거나 매개변수화하지 않고 직접 SQL 쿼리 문자열로 연결하여 컴파일할 때 발생합니다. 
+                로그인 검증을 무력화하여 타인 계정으로 무단 로그인하거나 데이터베이스 내부 정보를 마음대로 열람할 수 있습니다.
+            </p>
+            
+            <div class="code-compare-grid">
+                <div class="code-box vulnerable">
+                    <h4><i class="fa-solid fa-triangle-exclamation"></i> 취약한 코드 (Vulnerable Code)</h4>
+                    <pre><code># 로그인 검증 쿼리 직접 결합
+hashed_pass = md5_hash(password)
+query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{hashed_pass}'"
+cursor.execute(query)
+user = cursor.fetchone()
+
+# 상품 검색 쿼리 직접 결합
+query = f"SELECT * FROM products WHERE (title LIKE '%{q}%' OR description LIKE '%{q}%') ..."
+cursor.execute(query)</code></pre>
+                </div>
+                
+                <div class="code-box secure">
+                    <h4><i class="fa-solid fa-circle-check"></i> 보안 대책 코드 (Secure Code)</h4>
+                    <pre><code># 1. 매개변수화된 쿼리 (Parameterized Query) 사용
+# 데이터베이스 드라이버 레벨에서 입력값을 데이터 상수로 자동 바인딩
+query = "SELECT * FROM users WHERE username = ?"
+cursor.execute(query, (username,))
+user = cursor.fetchone()
+
+# 2. 검색 구문 내 안전한 플레이스홀더 바인딩
+query = "SELECT * FROM products WHERE (title LIKE ? OR description LIKE ?)"
+cursor.execute(query, (f"%{q}%", f"%{q}%"))</code></pre>
+                </div>
+            </div>
+
+            <div class="how-to-test-box">
+                <h5><i class="fa-solid fa-circle-question"></i> 취약 모드(OFF)에서의 테스팅 방법</h5>
+                <ol>
+                    <li>상단 스위치를 <strong>취약 모드: ON</strong>으로 변경합니다.</li>
+                    <li>로그인 페이지로 이동 후, 아이디에 <code>admin' --</code>을 입력하고 비밀번호는 아무 글자나 기입한 채 로그인을 시도합니다.</li>
+                    <li>비밀번호 확인을 우회하여 데이터베이스 내 첫 번째 관리자 계정(admin)으로 즉시 로그인됩니다.</li>
+                    <li>상품 검색 창에 <code>' UNION SELECT 1, username, password, 4, 5, 0 FROM users --</code>를 기입하면 화면에 전체 유저의 계정명과 비밀번호 해시값이 노출됩니다.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. XSS (Cross-Site Scripting) -->
+    <div class="lab-card">
+        <div class="lab-card-title vuln-title">
+            <span class="vuln-badge">Checkpoint 2</span>
+            <h2>XSS (크로스 사이트 스크립팅)</h2>
+        </div>
+        <div class="lab-card-body">
+            <p class="lab-desc">
+                게시글이나 채팅 등 외부 사용자 입력 데이터를 검증하지 않거나 브라우저에 여과 없이 렌더링할 때 발생합니다. 
+                공격자는 악성 스크립트를 삽입하여 타인 브라우저에서 쿠키나 세션을 탈취하고, 원치 않는 행위를 유도할 수 있습니다.
+            </p>
+            
+            <div class="code-compare-grid">
+                <div class="code-box vulnerable">
+                    <h4><i class="fa-solid fa-triangle-exclamation"></i> 취약한 코드 (Vulnerable Code)</h4>
+                    <pre><code>&lt;!-- 1. Jinja2 템플릿 엔진 자동 이스케이프 무력화 --&gt;
+&lt;div class="description-content"&gt;
+    &lt;!-- |safe 필터 사용 시 HTML 태그 및 스크립트 그대로 실행 --&gt;
+    &#123;&#123; product.description | safe &#125;&#125;
+&lt;/div&gt;
+
+&lt;!-- 2. JavaScript innerHTML의 안전하지 않은 데이터 삽입 --&gt;
+let formattedMsg = msg.message; // 필터 없음
+container.innerHTML = `&lt;div&gt;$&#123;formattedMsg&#125;&lt;/div&gt;`;</code></pre>
+                </div>
+                
+                <div class="code-box secure">
+                    <h4><i class="fa-solid fa-circle-check"></i> 보안 대책 코드 (Secure Code)</h4>
+                    <pre><code>&lt;!-- 1. 기본 자동 이스케이프 유지 (Escaped Rendering) --&gt;
+&lt;div class="description-content"&gt;
+    &lt;!-- HTML 엔티티(&lt;는 &amp;lt;, &gt;는 &amp;gt;)로 자동 인코딩 --&gt;
+    &#123;&#123; product.description &#125;&#125;
+&lt;/div&gt;
+
+&lt;!-- 2. JS에서 HTML 엔티티 이스케이프 함수 사용 또는 textContent 이용 --&gt;
+function escapeHTML(text) {
+    return text.replace(/&lt;/g, "&amp;lt;").replace(/&gt;/g, "&amp;gt;");
+}
+let formattedMsg = escapeHTML(msg.message);
+container.innerHTML = `&lt;div&gt;$&#123;formattedMsg&#125;&lt;/div&gt;`;</code></pre>
+                </div>
+            </div>
+
+            <div class="how-to-test-box">
+                <h5><i class="fa-solid fa-circle-question"></i> 취약 모드(OFF)에서의 테스팅 방법</h5>
+                <ol>
+                    <li>상단 스위치를 <strong>취약 모드: ON</strong>으로 변경합니다.</li>
+                    <li>새 상품 등록 페이지에서 상품 설명 란에 <code>&lt;script&gt;alert('XSS 공격 성공')&lt;/script&gt;</code> 또는 <code>&lt;img src=x onerror="alert('이미지 에러 XSS')"&gt;</code>를 작성하여 등록합니다.</li>
+                    <li>상품 목록에서 방금 생성한 상품 상세 페이지로 이동하면, 브라우저가 스크립트를 즉시 가동하여 경고창(Alert)을 띄우는 모습을 관찰할 수 있습니다.</li>
+                    <li>실시간 채팅창에서도 스크립트 및 img 태그의 onerror 페이로드가 즉시 채팅방 내의 모든 접속자 브라우저에서 실행됩니다.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Weak Hashing -->
+    <div class="lab-card">
+        <div class="lab-card-title vuln-title">
+            <span class="vuln-badge">Checkpoint 3</span>
+            <h2>취약한 비밀번호 암호화 및 업그레이드</h2>
+        </div>
+        <div class="lab-card-body">
+            <p class="lab-desc">
+                비밀번호를 평문으로 저장하거나, MD5/SHA256처럼 레인보우 테이블이나 무차별 대입 공격에 해독하기 쉬운 해시 함수로 암호화할 때 발생하는 보안 약점입니다.
+                보안 모드 가동 시 강력한 Salt가 포함된 단방향 암호화(PBKDF2/Bcrypt)를 사용하도록 전환하며, 기존 취약한 해시로 저장되어 있던 회원이 로그인할 때 
+                로그인 세션 과정에서 <strong>자동으로 비밀번호 해시 타입을 업그레이드</strong>해 주는 마이그레이션 패턴을 적용합니다.
+            </p>
+            
+            <div class="code-compare-grid">
+                <div class="code-box vulnerable">
+                    <h4><i class="fa-solid fa-triangle-exclamation"></i> 취약한 코드 (Vulnerable Code)</h4>
+                    <pre><code># 비밀번호를 소금(Salt) 없이 단순 MD5 단방향 해싱
+import hashlib
+
+def md5_hash(text):
+    return hashlib.md5(text.encode('utf-8')).hexdigest()
+
+# 삽입 및 체크
+hashed_password = md5_hash(password)
+db.execute("INSERT INTO users (password) VALUES (?)", (hashed_password,))</code></pre>
+                </div>
+                
+                <div class="code-box secure">
+                    <h4><i class="fa-solid fa-circle-check"></i> 보안 대책 코드 (Secure Code)</h4>
+                    <pre><code># 1. PBKDF2/Bcrypt 기반의 안전한 Salt가 동반된 해싱 함수 사용
+from werkzeug.security import generate_password_hash, check_password_hash
+
+# 회원가입 시 자동 Salt가 생성되는 해싱
+hashed_password = generate_password_hash(password)
+
+# 2. 로그인 시 취약 해시 감지 및 자동 실시간 업그레이드
+user_row = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+if user_row:
+    stored_pw = user_row['password']
+    if stored_pw.startswith('scrypt:') or stored_pw.startswith('pbkdf2:'):
+        # 이미 해시가 업그레이드 완료된 상태
+        is_valid = check_password_hash(stored_pw, password)
+    else:
+        # 기존 MD5 유저가 로그인 시 확인 후 즉각 업그레이드
+        if stored_pw == md5_hash(password):
+            new_secure_hash = generate_password_hash(password)
+            db.execute("UPDATE users SET password = ? WHERE id = ?", (new_secure_hash, user_row['id']))
+            db.commit()</code></pre>
+                </div>
+            </div>
+
+            <div class="how-to-test-box">
+                <h5><i class="fa-solid fa-circle-question"></i> 취약 모드(OFF)에서의 테스팅 방법</h5>
+                <ol>
+                    <li>상단 스위치를 <strong>취약 모드: ON</strong>으로 변경합니다.</li>
+                    <li>회원 가입을 진행합니다 (비밀번호: <code>test1234</code>).</li>
+                    <li>관리자 패널로 이동하여 가입 유저 목록 및 최근 모니터링 영역을 확인합니다. 새로 가입한 사용자의 패스워드가 32글자의 단순 MD5 해시값(예: <code>1679091c5a880faf6fb5e6087eb1b2dc</code>)으로 저장되어 해독이 매우 손쉬운 취약 상태임을 볼 수 있습니다.</li>
+                    <li><strong>보안 모드: ON</strong>으로 토글한 뒤 로그인하거나 새로 회원가입을 하면, 패스워드가 안전한 <code>scrypt:...</code> 또는 <code>pbkdf2:sha256:...</code> 형식으로 단방향 솔트 암호화 처리되는 것을 확인할 수 있습니다.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. IDOR (Insecure Direct Object Reference) -->
+    <div class="lab-card">
+        <div class="lab-card-title vuln-title">
+            <span class="vuln-badge">Checkpoint 4</span>
+            <h2>취약한 접근 제어 (IDOR - 부적절한 자원 참조)</h2>
+        </div>
+        <div class="lab-card-body">
+            <p class="lab-desc">
+                서버가 파일, 데이터베이스 키 등 내부 구현 자원을 가리키는 키값을 외부 사용자 입력 인자로 받고, 
+                이에 대한 소유권 및 권한 검증 절차를 거치지 않고 직접 조회/수정/삭제를 수행할 때 발생합니다.
+            </p>
+            
+            <div class="code-compare-grid">
+                <div class="code-box vulnerable">
+                    <h4><i class="fa-solid fa-triangle-exclamation"></i> 취약한 코드 (Vulnerable Code)</h4>
+                    <pre><code># 1. 사용자가 보낸 user_id 양식을 검증 없이 신뢰
+target_user_id = request.form.get('user_id')
+db.execute("UPDATE users SET bio = ? WHERE id = ?", (bio, target_user_id))
+
+# 2. 상품 삭제 시 세션 유저와 판매자 매칭 누락
+# URL 상의 product_id 경로를 받은 즉시 권한 유무 불문 삭제
+db.execute(f"DELETE FROM products WHERE id = {product_id}")
+
+# 3. 채팅 API 호출 시 다른 회원의 DMs 엿보기 허용
+s_id = request.args.get('sender_id')
+r_id = request.args.get('receiver_id')
+query = f"SELECT * FROM chats WHERE sender_id={s_id} AND receiver_id={r_id} ..."</code></pre>
+                </div>
+                
+                <div class="code-box secure">
+                    <h4><i class="fa-solid fa-circle-check"></i> 보안 대책 코드 (Secure Code)</h4>
+                    <pre><code># 1. 사용자가 제출한 user_id 대신 세션 사용자 정보(session['user_id']) 강제 적용
+target_user_id = session['user_id']
+db.execute("UPDATE users SET bio = ? WHERE id = ?", (bio, target_user_id))
+
+# 2. 리소스 권한 재검증
+product = db.execute("SELECT seller_id FROM products WHERE id = ?", (product_id,)).fetchone()
+if product['seller_id'] == session['user_id'] or session.get('is_admin'):
+    db.execute("DELETE FROM products WHERE id = ?", (product_id,))
+else:
+    abort(403) # 권한 없음 반환
+
+# 3. 1:1 채팅 API 요청 시 현재 로그인된 사용자로 한쪽 ID 고정 및 권한 체크
+current_user_id = session['user_id']
+query = "SELECT * FROM chats WHERE (sender_id = ? AND receiver_id = ?) OR ..."
+cursor.execute(query, (current_user_id, receiver_id, ...))</code></pre>
+                </div>
+            </div>
+
+            <div class="how-to-test-box">
+                <h5><i class="fa-solid fa-circle-question"></i> 취약 모드(OFF)에서의 테스팅 방법</h5>
+                <ol>
+                    <li>상단 스위치를 <strong>취약 모드: ON</strong>으로 변경합니다.</li>
+                    <li><code>buyer1</code> 계정(패스워드: <code>password123</code>)으로 로그인 후 마이페이지로 이동합니다.</li>
+                    <li>하단 수정 폼 내의 Hidden 필드인 <code>&lt;input name="user_id" value="3"&gt;</code> 의 값을 개발자 도구(F12)를 이용해 <code>2</code>로 임의 수정합니다.</li>
+                    <li>업데이트 버튼을 누르면, 로그인된 사용자(3번)가 아닌 <code>seller1</code> 사용자(2번)의 자기소개나 패스워드가 변조 처리되는 권한 침해 사고가 일어납니다.</li>
+                    <li>채팅방의 <strong>IDOR DM 도청 장치</strong> 영역에 가로채고 싶은 유저 ID 한 쌍(예: 2번과 3번)을 넣고 가로채기를 가동하면, 당사자 세션이 아님에도 불구하고 대화기록이 강제 노출되는 것을 모니터링할 수 있습니다.</li>
+                </ol>
+            </div>
+    </div>
+
+    <!-- 5. Remittance (Transfer) Vulnerabilities -->
+    <div class="lab-card">
+        <div class="lab-card-title vuln-title">
+            <span class="vuln-badge">Checkpoint 5</span>
+            <h2>송금 기능의 복합 취약점 (IDOR & 비즈니스 로직 결함)</h2>
+        </div>
+        <div class="lab-card-body">
+            <p class="lab-desc">
+                송금 시스템 설계 시, 송신자의 신원 확인을 세션이 아닌 클라이언트 인자에 의존하면 타인 자금을 무단 이체하는 **IDOR**가 발생합니다. 
+                또한 금액에 대한 음수(-) 검증 및 잔액 범위 검증이 생략되면, 음수 송금을 통해 자금을 강제 강탈하거나 마이너스 통장처럼 무한 송금이 가능해지는 **비즈니스 로직 결함**이 유발됩니다.
+            </p>
+            
+            <div class="code-compare-grid">
+                <div class="code-box vulnerable">
+                    <h4><i class="fa-solid fa-triangle-exclamation"></i> 취약한 코드 (Vulnerable Code)</h4>
+                    <pre><code># 1. 클라이언트가 제출한 sender_id를 그대로 사용 (IDOR)
+sender_id = request.form.get('sender_id')
+
+# 2. 유효성 검사 생략 (음수 송금 및 초과 송금 가능)
+# 3. 비동기식 트랜잭션 처리 누락
+db.execute(f"UPDATE users SET balance = balance - {amount} WHERE id = {sender_id}")
+db.execute(f"UPDATE users SET balance = balance + {amount} WHERE id = {receiver_id}")
+db.commit()</code></pre>
+                </div>
+                
+                <div class="code-box secure">
+                    <h4><i class="fa-solid fa-circle-check"></i> 보안 대책 코드 (Secure Code)</h4>
+                    <pre><code># 1. 세션 기반 송신자 강제 (IDOR 방어)
+sender_id = session['user_id']
+
+# 2. 비즈니스 로직 유효성 체크
+if sender_id == receiver_id: return error('자기 송금 불가')
+if amount <= 0: return error('음수/0원 송금 불가')
+
+# 3. 잔액 유효성 및 원자적 트랜잭션 수행
+sender = db.execute("SELECT balance FROM users WHERE id = ?", (sender_id,)).fetchone()
+if sender['balance'] < amount: return error('잔액 부족')
+
+try:
+    db.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (amount, sender_id))
+    db.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amount, receiver_id))
+    db.commit()
+except Exception:
+    db.rollback()</code></pre>
+                </div>
+            </div>
+
+            <div class="how-to-test-box">
+                <h5><i class="fa-solid fa-circle-question"></i> 취약 모드(OFF)에서의 테스팅 방법</h5>
+                <ol>
+                    <li>상단 스위치를 <strong>취약 모드: ON</strong>으로 변경합니다.</li>
+                    <li><code>buyer1</code> 계정으로 로그인한 뒤 **실시간 송금** 메뉴로 이동합니다.</li>
+                    <li>송신자 ID에 본인 ID(3)가 아닌 타인 ID(예: <code>2</code> - seller1)를 입력하고, 수신자를 나 자신(buyer1)으로 설정한 뒤 50,000원을 송금합니다.</li>
+                    <li><strong>결과:</strong> 내 돈이 아닌 seller1의 계좌에서 나에게로 50,000원이 강제 이체되는 IDOR 탈취가 성공합니다.</li>
+                    <li>수신자 목록에서 아무 유저나 선택하고 송금 금액에 <code>-30000</code>을 입력해 송금합니다.</li>
+                    <li><strong>결과:</strong> 음수 송금 로직 결함에 의해, 오히려 나의 잔액은 30,000원 늘어나고 상대방의 잔액은 30,000원 차감(탈취)됩니다.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}시큐어 마켓 (SafeTrade){% endblock %}</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Top Header Navigation -->
+    <header class="navbar">
+        <div class="navbar-container">
+            <a href="{{ url_for('index') }}" class="logo-brand">
+                <i class="fa-solid fa-shield-halved logo-icon"></i>
+                <span>시큐어 <span>마켓</span></span>
+            </a>
+            
+            <nav class="nav-menu">
+                <a href="{{ url_for('index') }}" class="nav-link"><i class="fa-solid fa-house"></i> 홈</a>
+                <a href="{{ url_for('products') }}" class="nav-link"><i class="fa-solid fa-tags"></i> 상품 목록</a>
+                {% if current_user %}
+                    <a href="{{ url_for('chat') }}" class="nav-link"><i class="fa-solid fa-comments"></i> 실시간 채팅</a>
+                    <a href="{{ url_for('transfer') }}" class="nav-link"><i class="fa-solid fa-wallet"></i> 실시간 송금</a>
+                    {% if is_admin %}
+                        <a href="{{ url_for('admin') }}" class="nav-link admin-nav-link"><i class="fa-solid fa-user-gear"></i> 관리자 패널</a>
+                    {% endif %}
+                {% endif %}
+                <a href="{{ url_for('security_lab') }}" class="nav-link lab-nav-link"><i class="fa-solid fa-flask"></i> 보안 연구소</a>
+            </nav>
+
+            <!-- Right Hand Actions (Security Toggle & User Session) -->
+            <div class="navbar-actions">
+                <!-- Security Mode Switcher -->
+                <div class="security-toggle-container {% if SECURITY_MODE %}secure-active{% else %}vuln-active{% endif %}" id="securityToggleBtn">
+                    <div class="security-status-indicator"></div>
+                    <span class="security-toggle-text">
+                        {% if SECURITY_MODE %}
+                            <i class="fa-solid fa-circle-check"></i> 보안 모드: ON
+                        {% else %}
+                            <i class="fa-solid fa-triangle-exclamation animate-pulse"></i> 취약 모드: ON
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="user-session-control">
+                    {% if current_user %}
+                        <span class="user-balance-nav"><i class="fa-solid fa-won-sign"></i> {{ "{:,}".format(user_balance) }}</span>
+                        <a href="{{ url_for('profile') }}" class="user-profile-btn">
+                            <i class="fa-solid fa-circle-user"></i>
+                            <span class="user-name-text">{{ current_user }}</span>
+                        </a>
+                        <a href="{{ url_for('logout') }}" class="btn-logout" title="로그아웃"><i class="fa-solid fa-right-from-bracket"></i></a>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="btn-login-header"><i class="fa-solid fa-arrow-right-to-bracket"></i> 로그인 / 가입</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Interactive Bottom Notifications -->
+    <div id="toastNotification" class="toast hidden">
+        <i id="toastIcon" class="fa-solid"></i>
+        <span id="toastMessage">메시지 내용</span>
+    </div>
+
+    <!-- Background Decoration Grid -->
+    <div class="bg-blur-1"></div>
+    <div class="bg-blur-2"></div>
+
+    <footer class="app-footer">
+        <div class="footer-container">
+            <p>&copy; 2026 SafeTrade Secondhand Platform. Secure Coding Education Project.</p>
+            <div class="footer-links">
+                <a href="{{ url_for('security_lab') }}"><i class="fa-solid fa-shield"></i> Security Lab</a>
+                <span>|</span>
+                <span>OS: Linux</span>
+                <span>|</span>
+                <span>Flask Engine &amp; SQLite RDBMS</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Main JS Operations -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

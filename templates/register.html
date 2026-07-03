@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}시큐어 마켓 - 회원가입{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-container">
+        <!-- Register Form Section -->
+        <div class="auth-section">
+            <h2 class="auth-title"><i class="fa-solid fa-user-plus"></i> 새로운 회원 가입</h2>
+            
+            {% if reg_error %}
+                <div class="alert alert-danger">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <span>{{ reg_error }}</span>
+                </div>
+            {% endif %}
+
+            <form action="{{ url_for('register') }}" method="POST" class="auth-form" id="registerForm">
+                <div class="form-group">
+                    <label for="reg_username"><i class="fa-solid fa-user"></i> 사용자명 (Username)</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="reg_username" name="username" placeholder="중복 확인할 아이디 입력" required autocomplete="off">
+                        <button type="button" class="btn-check-duplicate" onclick="checkUsernameDuplicate()">중복 확인</button>
+                    </div>
+                    <small id="usernameCheckMsg" class="form-feedback"></small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="reg_password"><i class="fa-solid fa-key"></i> 비밀번호 (Password)</label>
+                    <input type="password" id="reg_password" name="password" placeholder="사용할 비밀번호 입력" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="reg_bio"><i class="fa-solid fa-pencil"></i> 한줄 소개글 (Bio)</label>
+                    <textarea id="reg_bio" name="bio" rows="3" placeholder="본인을 소개하는 간단한 글을 작성해 주세요."></textarea>
+                </div>
+                
+                <button type="submit" class="btn-auth-submit" id="regSubmitBtn">가입하기</button>
+            </form>
+
+            <div class="auth-redirect-link mt-4 text-center">
+                <p>이미 계정이 있으신가요? <a href="{{ url_for('login') }}">로그인 하러가기</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let isUsernameChecked = false;
+
+    async function checkUsernameDuplicate() {
+        const usernameInput = document.getElementById('reg_username');
+        const feedback = document.getElementById('usernameCheckMsg');
+        const username = usernameInput.value.trim();
+
+        if (!username) {
+            feedback.textContent = '아이디를 입력해주세요.';
+            feedback.className = 'form-feedback error';
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/check_username?username=${encodeURIComponent(username)}`);
+            const data = await response.json();
+
+            if (data.available) {
+                feedback.textContent = data.msg;
+                feedback.className = 'form-feedback success';
+                isUsernameChecked = true;
+            } else {
+                feedback.textContent = data.msg;
+                feedback.className = 'form-feedback error';
+                isUsernameChecked = false;
+            }
+        } catch (e) {
+            feedback.textContent = '확인 중 오류가 발생했습니다.';
+            feedback.className = 'form-feedback error';
+            isUsernameChecked = false;
+        }
+    }
+
+    // Reset duplicate check flag on username input change
+    document.getElementById('reg_username').addEventListener('input', () => {
+        isUsernameChecked = false;
+        document.getElementById('usernameCheckMsg').textContent = '';
+    });
+
+    document.getElementById('registerForm').addEventListener('submit', (e) => {
+        if (!isUsernameChecked) {
+            e.preventDefault();
+            showToast('warning', '아이디 중복 검사를 먼저 수행해주세요.');
+            document.getElementById('usernameCheckMsg').textContent = '가입 전 중복 확인이 필요합니다.';
+            document.getElementById('usernameCheckMsg').className = 'form-feedback error';
+        }
+    });
+</script>
+{% endblock %}
