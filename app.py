@@ -322,6 +322,19 @@ def login():
                 cursor = db.cursor()
                 cursor.execute(query)
                 user = cursor.fetchone()
+                
+                # Fallback: If no user is found by MD5 query (e.g. they registered in secure mode and have a secure PBKDF2/scrypt hash),
+                # we query the user using a string-formatted query (still vulnerable to SQL Injection) and verify using check_password_hash.
+                if not user:
+                    query2 = f"SELECT * FROM users WHERE username = '{username}'"
+                    cursor.execute(query2)
+                    user_row = cursor.fetchone()
+                    if user_row:
+                        stored_password = user_row['password']
+                        if stored_password.startswith('scrypt:') or stored_password.startswith('pbkdf2:'):
+                            if check_password_hash(stored_password, password):
+                                user = user_row
+                                
                 if not user:
                     error = '아이디 또는 비밀번호가 올바르지 않습니다.'
             except Exception as e:
@@ -928,4 +941,3 @@ def admin_reset_db():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
-
